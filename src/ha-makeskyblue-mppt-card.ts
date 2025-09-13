@@ -25,6 +25,12 @@ const ENTITY_SUFFIX = {
   batteryRecoverVoltage: 'undervoltage_recovery_voltage',
   batteryType: 'battery_type',
   batteryNumber: 'battery_number',
+  // ADDED: Suffixes for diagnostics entities
+  wifiSignal: 'signal_strength',
+  wifiSsid: 'wi_fi_name',
+  ledIndicator: 'led_indicator',
+  restartDevice: 'restart',
+  resetDevice: 'reset_device',
 } as const;
 
 type SettingKey = 
@@ -40,6 +46,9 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: SolarManagerCardConfig;
   @state() private _showSettings = false;
+  // ADDED: A new state property to control the diagnostics panel visibility
+  @state() private _showDiagnostics = false;
+
   public setConfig(config: SolarManagerCardConfig): void { if (!config || !config.device) throw new Error("Config 'device is required"); this.config = config; }
   public getCardSize(): number { return 10; }
   
@@ -75,7 +84,6 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       <ha-card>
         <div class="card-content">
           ${this.config.image ? html`<img class="brand-image" src="${this.config.image}" />` : ''}
-          <!-- MODIFIED: The default title is now the serial number. -->
           <div class="title">${this.config.name || this.config.device}</div>
           ${this.renderGaugeAndStats(powerValue, gaugeRotation, pvVoltage, batteryVoltage, batteryCurrent)}
           ${this.renderInfoBoxes(workStatus, cumulativeGeneration)}
@@ -87,8 +95,14 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
           <mwc-button @click=${() => this._showSettings = !this._showSettings}>
             ${this._showSettings ? 'Hide Settings' : 'Show Settings'}
           </mwc-button>
+          <!-- ADDED: A new button for diagnostics -->
+          <mwc-button @click=${() => this._showDiagnostics = !this._showDiagnostics}>
+            ${this._showDiagnostics ? 'Hide Diagnostics' : 'Show Diagnostics'}
+          </mwc-button>
         </div>
         ${this._showSettings ? this.renderSettingsPanel() : ''}
+        <!-- ADDED: Conditional rendering for the new diagnostics panel -->
+        ${this._showDiagnostics ? this.renderDiagnosticsPanel() : ''}
       </ha-card>
     `;
   }
@@ -169,6 +183,56 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
   private renderSelectSetting(entity: HassEntity, label: string): TemplateResult { /* UNCHANGED */
     return html` <div class="setting-row"> <label>${label}</label> <ha-select .value=${entity.state} @selected=${(e: Event) => { const selectedValue = (e.target as HTMLSelectElement).value; this._callService('select', 'select_option', { entity_id: entity.entity_id, option: selectedValue }); }}> ${entity.attributes.options.map((opt: string) => html`<mwc-list-item .value=${opt}>${opt}</mwc-list-item>`)} </ha-select> </div> `;
   }
+
+  // ADDED: A new render function for the diagnostics panel
+  private renderDiagnosticsPanel(): TemplateResult {
+    const wifiSignal = this._getEntity(ENTITY_SUFFIX.wifiSignal);
+    const wifiSsid = this._getEntity(ENTITY_SUFFIX.wifiSsid);
+    const ledIndicator = this._getEntity(ENTITY_SUFFIX.ledIndicator, 'switch');
+    const restartDevice = this._getEntity(ENTITY_SUFFIX.restartDevice, 'button');
+    const resetDevice = this._getEntity(ENTITY_SUFFIX.resetDevice, 'button');
+
+    return html`
+      <div class="diagnostics-area">
+        <!-- WiFi Signal Strength -->
+        ${wifiSignal ? html`
+          <div class="setting-row">
+            <label>信号强度</label>
+            <span>${this._getState(wifiSignal)}${this._getUnit(wifiSignal)}</span>
+          </div>
+        ` : ''}
+        <!-- WiFi Name (SSID) -->
+        ${wifiSsid ? html`
+          <div class="setting-row">
+            <label>WiFi 名称</label>
+            <span>${this._getState(wifiSsid)}</span>
+          </div>
+        ` : ''}
+        <!-- LED Indicator Switch -->
+        ${ledIndicator ? html`
+          <div class="setting-row">
+            <label>LED 指示灯</label>
+            <ha-switch .checked=${this._getState(ledIndicator) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: ledIndicator.entity_id })}></ha-switch>
+          </div>
+        ` : ''}
+        <!-- Restart Device Button -->
+        ${restartDevice ? html`
+          <div class="setting-row">
+            <label>重启设备</label>
+            <mwc-button @click=${() => this._callService('button', 'press', { entity_id: restartDevice.entity_id })}>重启</mwc-button>
+          </div>
+        ` : ''}
+        <!-- Reset Device Button -->
+        ${resetDevice ? html`
+          <div class="setting-row">
+            <label>重置设备</label>
+            <mwc-button class="destructive" @click=${() => this._callService('button', 'press', { entity_id: resetDevice.entity_id })}>重置</mwc-button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
   static get styles(): CSSResultGroup {
     return css`
       /* UNCHANGED STYLES */
@@ -177,8 +241,6 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .warning { padding: 16px; color: var(--error-color); }
       .brand-image { max-width: 150px; max-height: 40px; }
       .title { font-size: 1.2em; font-weight: 500; color: var(--primary-text-color); }
-      
-      /* REFINED GAUGE STYLES */
       .gauge-wrapper { display: flex; flex-direction: column; align-items: center; margin-bottom: 24px; }
       .gauge-container { position: relative; width: 100%; max-width: 300px; height: 150px; }
       .gauge-background { position: absolute; width: 240px; height: 120px; bottom: 0; left: 50%; transform: translateX(-50%); border-top-left-radius: 120px; border-top-right-radius: 120px; background: #f0f3f5; }
@@ -188,38 +250,14 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .gauge-tick.major::after { height: 12px; background: #a0a0a0; }
       .gauge-label-wrapper { position: absolute; width: 1px; height: 145px; bottom: 0; left: 50%; transform-origin: bottom center; }
       .gauge-label-text { position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em; color: var(--secondary-text-color); }
-
-      .gauge-power-bar {
-        position: absolute;
-        bottom: 12.5px;
-        left: 50%;
-        width: 6px; 
-        height: 75px;
-        margin-left: -3px; 
-        background-color: #f44336;
-        border-radius: 3px;
-        transform-origin: bottom center;
-        transition: transform 0.5s ease-in-out;
-      }
-
-      /* DELETED: The .gauge-pivot css block was here */
-      
-      .gauge-value-text {
-        margin-top: 20px;
-        font-size: 2.2em;
-        font-weight: bold;
-        color: #4CAF50;
-        text-align: center;
-      }
+      .gauge-power-bar { position: absolute; bottom: 12.5px; left: 50%; width: 6px; height: 75px; margin-left: -3px; background-color: #f44336; border-radius: 3px; transform-origin: bottom center; transition: transform 0.5s ease-in-out; }
+      .gauge-value-text { margin-top: 20px; font-size: 2.2em; font-weight: bold; color: #4CAF50; text-align: center; }
       .gauge-value-text .unit { font-size: 0.5em; font-weight: normal; color: var(--secondary-text-color); margin-left: 4px; }
-      
       .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; text-align: center; }
       .stat ha-icon { color: var(--state-icon-color); margin-bottom: 4px; }
       .stat .label { font-size: 0.8em; color: var(--secondary-text-color); }
       .stat .value { font-size: 1.5em; font-weight: 500; color: var(--primary-text-color); }
       .stat .value .unit { font-size: 0.6em; }
-      
-      /* UNCHANGED STYLES */
       .info-grid { display: grid; gap: 8px; width: 100%; grid-template-columns: repeat(2, 1fr); }
       .info-box { background-color: #03a9f4; color: white; border-radius: 12px; padding: 12px; text-align: center; }
       .info-box .label { font-size: 0.9em; opacity: 0.8; }
@@ -238,6 +276,22 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .setting-row.slider { flex-direction: column; align-items: stretch; }
       .slider-container { display: flex; align-items: center; gap: 16px; }
       .slider-container ha-slider { flex-grow: 1; }
+      
+      /* ADDED: Styles for the new diagnostics panel */
+      .card-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-right: 8px;
+      }
+      .diagnostics-area {
+        padding: 0 16px 16px;
+        border-top: 1px solid var(--divider-color);
+        margin-top: 8px;
+      }
+      .destructive {
+        --mdc-theme-primary: var(--error-color);
+      }
     `;
   }
 }
