@@ -1,0 +1,9 @@
+# Dependencies
+/node_modules
+
+# Build artifacts
+/dist
+/rollup.config.js.map
+
+# IDE config
+.vscode
