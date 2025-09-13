@@ -11,4 +11,7 @@ export interface SolarManagerCardConfig extends LovelaceCardConfig {
   type: string;
   device: string;
   name?: string;
+  image?: string;
+  power_switch_entity?: string;
+  battery_soc_entity?: string;
 }
