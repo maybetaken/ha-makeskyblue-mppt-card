@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: write
+  actions: read
+  checks: write
+
 jobs:
   release:
     name: Create Release and Upload Asset
