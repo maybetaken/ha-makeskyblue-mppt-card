@@ -2,6 +2,7 @@
 /node_modules
 
 # Build artifacts
+/dist/*.map
 /rollup.config.js.map
 
 # IDE config
