@@ -7,19 +7,25 @@ on:
 
 jobs:
   release:
+    name: Create Release and Upload Asset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - uses: softprops/action-gh-release@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the project
+        run: npm run build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*
+            dist/ha-makeskyblue-mppt-card.js
