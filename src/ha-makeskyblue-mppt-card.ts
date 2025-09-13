@@ -21,8 +21,8 @@ const ENTITY_SUFFIX = {
   equalizationVoltage: 'mppt_equalization_voltage',
   floatVoltage: 'mppt_float_voltage',
   chargeCurrent: 'mppt_charge_current',
-  batteryLowVoltage: 'battery_low_voltage',
-  batteryRecoverVoltage: 'battery_recover_voltage',
+  batteryLowVoltage: 'undervoltage_protection_voltage',
+  batteryRecoverVoltage: 'undervoltage_recovery_voltage',
   batteryType: 'battery_type',
   batteryNumber: 'battery_number',
 } as const;
