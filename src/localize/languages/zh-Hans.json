@@ -20,7 +20,9 @@
     "settings_hide": "隐藏设置",
     "settings_show": "显示设置",
     "diagnostics_hide": "隐藏诊断",
-    "diagnostics_show": "显示诊断"
+    "diagnostics_show": "显示诊断",
+    "charts_hide": "隐藏图表",
+    "charts_show": "显示图表"
   },
   "settings": {
     "equalization_voltage": "均充电压",
@@ -55,5 +57,9 @@
       "pb_lead_acid_battery": "铅酸电池",
       "li_lithium_battery": "锂电池"
     }
+  },
+  "charts": {
+    "power_history": "功率历史 (24小时)",
+    "voltage_history": "电压历史 (24小时)"
   }
 }

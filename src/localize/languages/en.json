@@ -20,7 +20,9 @@
     "settings_hide": "Hide Settings",
     "settings_show": "Show Settings",
     "diagnostics_hide": "Hide Diagnostics",
-    "diagnostics_show": "Show Diagnostics"
+    "diagnostics_show": "Show Diagnostics",
+    "charts_hide": "Hide Charts",
+    "charts_show": "Show Charts"
   },
   "settings": {
     "equalization_voltage": "Equalization Voltage",
@@ -55,5 +57,9 @@
       "pb_lead_acid_battery": "Lead-Acid Battery",
       "li_lithium_battery": "Lithium Battery"
     }
+  },
+  "charts": {
+    "power_history": "Power History (24h)",
+    "voltage_history": "Voltage History (24h)"
   }
 }

@@ -1,12 +1,12 @@
 import { LitElement, html, css, TemplateResult, CSSResultGroup } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, LovelaceCard, LovelaceCardEditor } from 'custom-card-helpers';
+import { customElement, property, state, query } from 'lit/decorators.js';
+import { HomeAssistant, LovelaceCard, LovelaceCardEditor, LovelaceCardConfig } from 'custom-card-helpers';
 import { HassEntity } from 'home-assistant-js-websocket';
 import { SolarManagerCardConfig } from './types';
 import './editor';
 import { localize } from './localize/localize';
 
-console.info(`%c HA-MAKESKYBLUE-MPPT-CARD %c v5.3.0-final `, 'color: orange; font-weight: bold; background: black', 'color: white; font-weight: bold; background: dimgray');
+console.info(`%c HA-MAKESKYBLUE-MPPT-CARD %c v5.4.2-final `, 'color: orange; font-weight: bold; background: black', 'color: white; font-weight: bold; dimgray');
 
 const ENTITY_SUFFIX = {
   faultStatus: 'mppt_fault_status',
@@ -31,7 +31,7 @@ const ENTITY_SUFFIX = {
   resetDevice: 'reset_device',
 } as const;
 
-type SettingKey = 
+type SettingKey =
   | 'equalizationVoltage' | 'floatVoltage' | 'chargeCurrent' | 'batteryLowVoltage'
   | 'batteryRecoverVoltage' | 'batteryType' | 'batteryNumber';
 
@@ -45,6 +45,17 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
   @state() private config!: SolarManagerCardConfig;
   @state() private _showSettings = false;
   @state() private _showDiagnostics = false;
+  @state() private _showCharts = false;
+
+  // --- MODIFICATION START ---
+  // Hold references to the created chart card elements to avoid re-creating them
+  @state() private _powerChartEl?: LovelaceCard;
+  @state() private _voltageChartEl?: LovelaceCard;
+  // --- MODIFICATION END ---
+
+  @query('#power-chart-container') private _powerChartContainer?: HTMLElement;
+  @query('#voltage-chart-container') private _voltageChartContainer?: HTMLElement;
+
   public setConfig(config: SolarManagerCardConfig): void { if (!config || !config.device) throw new Error("Config 'device is required"); this.config = config; }
   public getCardSize(): number { return 10; }
   private _getEntity(suffix: string, domain = 'sensor'): HassEntity | undefined {
@@ -53,11 +64,11 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
     return this.hass.states[entityId];
   }
   private _getEntityById(entityId: string): HassEntity | undefined { return this.hass.states[entityId]; }
-  private _getState(entity: HassEntity | undefined, fallback: string | undefined = undefined): string { 
+  private _getState(entity: HassEntity | undefined, fallback: string | undefined = undefined): string {
     if (!entity || entity.state === 'unavailable' || entity.state === 'unknown') {
       return fallback !== undefined ? fallback : localize(this.hass, 'common.unavailable');
     }
-    return entity.state; 
+    return entity.state;
   }
   private _getUnit(entity: HassEntity | undefined): string { return entity?.attributes.unit_of_measurement || ''; }
   private _callService(domain: string, service: string, data: object): void { this.hass.callService(domain, service, data); }
@@ -95,13 +106,17 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
           <mwc-button @click=${() => this._showDiagnostics = !this._showDiagnostics}>
             ${this._showDiagnostics ? localize(this.hass, 'buttons.diagnostics_hide') : localize(this.hass, 'buttons.diagnostics_show')}
           </mwc-button>
+          <mwc-button @click=${() => this._showCharts = !this._showCharts}>
+            ${this._showCharts ? localize(this.hass, 'buttons.charts_hide') : localize(this.hass, 'buttons.charts_show')}
+          </mwc-button>
         </div>
         ${this._showSettings ? this.renderSettingsPanel() : ''}
         ${this._showDiagnostics ? this.renderDiagnosticsPanel() : ''}
+        ${this._showCharts ? this.renderChartsPanel() : ''}
       </ha-card>
     `;
   }
-  
+
   private renderGaugeAndStats(powerValue: number, gaugeRotation: number, pvVoltage?: HassEntity, batteryVoltage?: HassEntity, batteryCurrent?: HassEntity): TemplateResult {
     const labels = [ { value: '0', angle: -90 }, { value: '2500', angle: -45 }, { value: '5000', angle: 0 }, { value: '7500', angle: 45 }, { value: '10000', angle: 90 }, ];
     return html`
@@ -125,6 +140,7 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       </div>
     `;
   }
+
   private renderInfoBoxes(workStatus?: HassEntity, cumulativeGeneration?: HassEntity): TemplateResult {
     const workStatusState = this._getState(workStatus, 'unknown');
     const localizedWorkStatus = localize(this.hass, `states.work_status.${workStatusState}`);
@@ -160,7 +176,98 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
     `;
   }
   private renderDiagnosticsPanel(): TemplateResult { const wifiSignal = this._getEntity(ENTITY_SUFFIX.wifiSignal); const wifiSsid = this._getEntity(ENTITY_SUFFIX.wifiSsid); const ledIndicator = this._getEntity(ENTITY_SUFFIX.ledIndicator, 'switch'); const restartDevice = this._getEntity(ENTITY_SUFFIX.restartDevice, 'button'); const resetDevice = this._getEntity(ENTITY_SUFFIX.resetDevice, 'button'); return html`<div class="diagnostics-area">${wifiSignal ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.signal_strength')}</label><span>${this._getState(wifiSignal)}${this._getUnit(wifiSignal)}</span></div>` : ''}${wifiSsid ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.wifi_name')}</label><span>${this._getState(wifiSsid)}</span></div>` : ''}${ledIndicator ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.led_indicator')}</label><ha-switch .checked=${this._getState(ledIndicator) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: ledIndicator.entity_id })}></ha-switch></div>` : ''}${restartDevice ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.restart_device')}</label><mwc-button @click=${() => this._callService('button', 'press', { entity_id: restartDevice.entity_id })}>${localize(this.hass, 'diagnostics.restart')}</mwc-button></div>` : ''}${resetDevice ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.reset_device')}</label><mwc-button class="destructive" @click=${() => this._callService('button', 'press', { entity_id: resetDevice.entity_id })}>${localize(this.hass, 'diagnostics.reset')}</mwc-button></div>` : ''}</div>`; }
-  
+
+  private renderChartsPanel(): TemplateResult {
+    return html`
+      <div class="charts-area">
+        <div id="power-chart-container"></div>
+        <div id="voltage-chart-container"></div>
+      </div>
+    `;
+  }
+
+  // --- MODIFICATION START ---
+  protected updated(changedProps: Map<string | number | symbol, unknown>): void {
+    super.updated(changedProps);
+
+    if (!this._showCharts) {
+      // If charts are hidden, clear the element references to allow garbage collection
+      // and ensure they are re-created if shown again.
+      if (this._powerChartEl || this._voltageChartEl) {
+        this._powerChartEl = undefined;
+        this._voltageChartEl = undefined;
+      }
+      return;
+    }
+
+    // If charts are visible, check what changed.
+    if (changedProps.has('_showCharts')) {
+      // The charts panel was just opened. Create the chart elements for the first time.
+      this._createChart('power');
+      this._createChart('voltage');
+    } else if (changedProps.has('hass')) {
+      // Only hass updated, and the charts are already visible.
+      // Simply update the hass object on the existing chart elements.
+      // This will make the charts update their data without re-creating the entire DOM element.
+      if (this._powerChartEl) {
+        this._powerChartEl.hass = this.hass;
+      }
+      if (this._voltageChartEl) {
+        this._voltageChartEl.hass = this.hass;
+      }
+    }
+  }
+  // --- MODIFICATION END ---
+
+
+  // --- MODIFICATION START ---
+  private async _createChart(type: 'power' | 'voltage'): Promise<void> {
+    let config: LovelaceCardConfig;
+    let container: HTMLElement | undefined;
+    const baseIdentifier = `makeskyblue_mppt_${this.config.device.toLowerCase()}`;
+
+    if (type === 'power') {
+      container = this._powerChartContainer;
+      config = {
+        type: 'history-graph',
+        entities: [`sensor.${baseIdentifier}_${ENTITY_SUFFIX.chargePower}`],
+        hours_to_show: 24,
+        title: localize(this.hass, 'charts.power_history'),
+      };
+    } else { // type === 'voltage'
+      container = this._voltageChartContainer;
+      config = {
+        type: 'history-graph',
+        entities: [
+          `sensor.${baseIdentifier}_${ENTITY_SUFFIX.pvVoltage}`,
+          `sensor.${baseIdentifier}_${ENTITY_SUFFIX.batteryVoltage}`,
+        ],
+        hours_to_show: 24,
+        title: localize(this.hass, 'charts.voltage_history'),
+      };
+    }
+
+    if (!container) return;
+
+    const helpers = await (window as any).loadCardHelpers();
+    const card = await helpers.createCardElement(config) as LovelaceCard;
+    card.hass = this.hass;
+
+    // Store the created card element in our state property
+    if (type === 'power') {
+      this._powerChartEl = card;
+    } else {
+      this._voltageChartEl = card;
+    }
+
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+    container.appendChild(card);
+  }
+  // --- MODIFICATION END ---
+
+
   static get styles(): CSSResultGroup {
     return css`
       ha-card { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -196,7 +303,7 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .row .label, .temp-bar .label { flex-grow: 1; margin-left: 12px; font-weight: 500; }
       .row .value, .temp-bar .value { font-size: 1.1em; font-weight: bold; }
       .row .value .unit { font-size: 0.8em; color: var(--secondary-text-color); }
-      .settings-area, .diagnostics-area { padding: 0 16px 16px; border-top: 1px solid var(--divider-color); margin-top: 8px; }
+      .settings-area, .diagnostics-area, .charts-area { padding: 0 16px 16px; border-top: 1px solid var(--divider-color); margin-top: 8px; }
       .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
       .setting-row label { flex: 1; }
       .setting-row ha-textfield, .setting-row ha-select { flex: 1; max-width: 150px; }
@@ -205,6 +312,9 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .slider-container ha-slider { flex-grow: 1; }
       .card-actions { display: flex; justify-content: flex-end; gap: 8px; padding-right: 8px; }
       .destructive { --mdc-theme-primary: var(--error-color); }
+      .charts-area > * {
+        margin-top: 16px;
+      }
     `;
   }
 }
