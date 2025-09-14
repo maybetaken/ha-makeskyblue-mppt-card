@@ -1,6 +1,7 @@
 import typescript from '@rollup/plugin-typescript';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
+import json from '@rollup/plugin-json';
 
 export default {
   input: 'src/ha-makeskyblue-mppt-card.ts',
@@ -14,6 +15,7 @@ export default {
     warn(warning);
   },
   plugins: [
+    json(),
     nodeResolve(),
     typescript(),
     terser({

@@ -1,0 +1,59 @@
+{
+  "common": {
+    "unavailable": "不可用"
+  },
+  "gauge": {
+    "pv_voltage": "光伏输入电压",
+    "battery_voltage": "电池充电电压",
+    "battery_current": "电池充电电流"
+  },
+  "info": {
+    "charge_mode": "充电模式",
+    "cumulative_generation": "累计发电量"
+  },
+  "rows": {
+    "power_switch": "电源开关",
+    "battery_soc": "电池电量",
+    "temperature": "当前温度"
+  },
+  "buttons": {
+    "settings_hide": "隐藏设置",
+    "settings_show": "显示设置",
+    "diagnostics_hide": "隐藏诊断",
+    "diagnostics_show": "显示诊断"
+  },
+  "settings": {
+    "equalization_voltage": "均充电压",
+    "float_voltage": "浮充电压",
+    "max_charge_current": "最大充电电流",
+    "battery_low_voltage": "电池低压",
+    "battery_recover_voltage": "电池恢复电压",
+    "battery_type": "电池类型",
+    "battery_number": "电池串数"
+  },
+  "diagnostics": {
+    "signal_strength": "信号强度",
+    "wifi_name": "WiFi 名称",
+    "led_indicator": "LED 指示灯",
+    "restart_device": "重启设备",
+    "restart": "重启",
+    "reset_device": "重置设备",
+    "reset": "重置"
+  },
+  "states": {
+    "work_status": {
+      "shutdown": "关机",
+      "pre_charging": "预充电",
+      "constant_current_charging": "恒流充电",
+      "constant_voltage_charging": "恒压充电",
+      "mppt_tracking": "MPPT跟踪",
+      "bus_constant_voltage": "总线恒压",
+      "float_charging": "浮充",
+      "unknown": "未知"
+    },
+    "battery_type": {
+      "pb_lead_acid_battery": "铅酸电池",
+      "li_lithium_battery": "锂电池"
+    }
+  }
+}

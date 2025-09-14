@@ -1,0 +1,59 @@
+{
+  "common": {
+    "unavailable": "Unavailable"
+  },
+  "gauge": {
+    "pv_voltage": "PV Voltage",
+    "battery_voltage": "Battery Voltage",
+    "battery_current": "Battery Current"
+  },
+  "info": {
+    "charge_mode": "Charge Mode",
+    "cumulative_generation": "Cumulative Generation"
+  },
+  "rows": {
+    "power_switch": "Power Switch",
+    "battery_soc": "Battery Level",
+    "temperature": "Current Temperature"
+  },
+  "buttons": {
+    "settings_hide": "Hide Settings",
+    "settings_show": "Show Settings",
+    "diagnostics_hide": "Hide Diagnostics",
+    "diagnostics_show": "Show Diagnostics"
+  },
+  "settings": {
+    "equalization_voltage": "Equalization Voltage",
+    "float_voltage": "Float Voltage",
+    "max_charge_current": "Max Charge Current",
+    "battery_low_voltage": "Battery Low Voltage",
+    "battery_recover_voltage": "Battery Recover Voltage",
+    "battery_type": "Battery Type",
+    "battery_number": "Battery Number"
+  },
+  "diagnostics": {
+    "signal_strength": "Signal Strength",
+    "wifi_name": "WiFi Name",
+    "led_indicator": "LED Indicator",
+    "restart_device": "Restart Device",
+    "restart": "Restart",
+    "reset_device": "Reset Device",
+    "reset": "Reset"
+  },
+  "states": {
+    "work_status": {
+      "shutdown": "Shutdown",
+      "pre_charging": "Pre-Charging",
+      "constant_current_charging": "Constant Current",
+      "constant_voltage_charging": "Constant Voltage",
+      "mppt_tracking": "MPPT Tracking",
+      "bus_constant_voltage": "Bus Constant Voltage",
+      "float_charging": "Float Charging",
+      "unknown": "Unknown"
+    },
+    "battery_type": {
+      "pb_lead_acid_battery": "Lead-Acid Battery",
+      "li_lithium_battery": "Lithium Battery"
+    }
+  }
+}

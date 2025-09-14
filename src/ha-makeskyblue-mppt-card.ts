@@ -4,11 +4,11 @@ import { HomeAssistant, LovelaceCard, LovelaceCardEditor } from 'custom-card-hel
 import { HassEntity } from 'home-assistant-js-websocket';
 import { SolarManagerCardConfig } from './types';
 import './editor';
+import { localize } from './localize/localize';
 
-console.info(`%c HA-MAKESKYBLUE-MPPT-CARD %c v4.5.3-final `, 'color: orange; font-weight: bold; background: black', 'color: white; font-weight: bold; background: dimgray');
+console.info(`%c HA-MAKESKYBLUE-MPPT-CARD %c v5.3.0-final `, 'color: orange; font-weight: bold; background: black', 'color: white; font-weight: bold; background: dimgray');
 
 const ENTITY_SUFFIX = {
-  // Sensors
   faultStatus: 'mppt_fault_status',
   batteryVoltage: 'battery_voltage',
   batteryCurrent: 'battery_current',
@@ -17,7 +17,6 @@ const ENTITY_SUFFIX = {
   temperature: 'mppt_temperature',
   cumulativeGeneration: 'mppt_cumulative_generation',
   workStatus: 'mppt_work_status',
-  // Settings (Numbers and Selects)
   equalizationVoltage: 'mppt_equalization_voltage',
   floatVoltage: 'mppt_float_voltage',
   chargeCurrent: 'mppt_charge_current',
@@ -25,7 +24,6 @@ const ENTITY_SUFFIX = {
   batteryRecoverVoltage: 'undervoltage_recovery_voltage',
   batteryType: 'battery_type',
   batteryNumber: 'battery_number',
-  // ADDED: Suffixes for diagnostics entities
   wifiSignal: 'signal_strength',
   wifiSsid: 'wi_fi_name',
   ledIndicator: 'led_indicator',
@@ -46,21 +44,21 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: SolarManagerCardConfig;
   @state() private _showSettings = false;
-  // ADDED: A new state property to control the diagnostics panel visibility
   @state() private _showDiagnostics = false;
-
   public setConfig(config: SolarManagerCardConfig): void { if (!config || !config.device) throw new Error("Config 'device is required"); this.config = config; }
   public getCardSize(): number { return 10; }
-  
-  // MODIFIED: This function now automatically prepends the fixed prefix.
   private _getEntity(suffix: string, domain = 'sensor'): HassEntity | undefined {
     const fullDeviceIdentifier = `makeskyblue_mppt_${this.config.device.toLowerCase()}`;
     const entityId = `${domain}.${fullDeviceIdentifier}_${suffix}`;
     return this.hass.states[entityId];
   }
-  
   private _getEntityById(entityId: string): HassEntity | undefined { return this.hass.states[entityId]; }
-  private _getState(entity: HassEntity | undefined, fallback = '--'): string { return (entity && entity.state !== 'unavailable' && entity.state !== 'unknown') ? entity.state : fallback; }
+  private _getState(entity: HassEntity | undefined, fallback: string | undefined = undefined): string { 
+    if (!entity || entity.state === 'unavailable' || entity.state === 'unknown') {
+      return fallback !== undefined ? fallback : localize(this.hass, 'common.unavailable');
+    }
+    return entity.state; 
+  }
   private _getUnit(entity: HassEntity | undefined): string { return entity?.attributes.unit_of_measurement || ''; }
   private _callService(domain: string, service: string, data: object): void { this.hass.callService(domain, service, data); }
 
@@ -68,7 +66,6 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
     if (!this.config || !this.hass) return html``;
     const chargePower = this._getEntity(ENTITY_SUFFIX.chargePower);
     if (!chargePower) return html`<ha-card><div class="warning">Entity not found. Check Serial Number. Expected: sensor.makeskyblue_mppt_${this.config.device.toLowerCase()}_${ENTITY_SUFFIX.chargePower}</div></ha-card>`;
-    
     const pvVoltage = this._getEntity(ENTITY_SUFFIX.pvVoltage);
     const batteryVoltage = this._getEntity(ENTITY_SUFFIX.batteryVoltage);
     const batteryCurrent = this._getEntity(ENTITY_SUFFIX.batteryCurrent);
@@ -93,33 +90,26 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
         </div>
         <div class="card-actions">
           <mwc-button @click=${() => this._showSettings = !this._showSettings}>
-            ${this._showSettings ? 'Hide Settings' : 'Show Settings'}
+            ${this._showSettings ? localize(this.hass, 'buttons.settings_hide') : localize(this.hass, 'buttons.settings_show')}
           </mwc-button>
-          <!-- ADDED: A new button for diagnostics -->
           <mwc-button @click=${() => this._showDiagnostics = !this._showDiagnostics}>
-            ${this._showDiagnostics ? 'Hide Diagnostics' : 'Show Diagnostics'}
+            ${this._showDiagnostics ? localize(this.hass, 'buttons.diagnostics_hide') : localize(this.hass, 'buttons.diagnostics_show')}
           </mwc-button>
         </div>
         ${this._showSettings ? this.renderSettingsPanel() : ''}
-        <!-- ADDED: Conditional rendering for the new diagnostics panel -->
         ${this._showDiagnostics ? this.renderDiagnosticsPanel() : ''}
       </ha-card>
     `;
   }
   
-  // All the rest of the file (render helpers, settings panel, styles) is completely unchanged.
-  private renderGaugeAndStats(powerValue: number, gaugeRotation: number, pvVoltage?: HassEntity, batteryVoltage?: HassEntity, batteryCurrent?: HassEntity): TemplateResult { /* UNCHANGED */
+  private renderGaugeAndStats(powerValue: number, gaugeRotation: number, pvVoltage?: HassEntity, batteryVoltage?: HassEntity, batteryCurrent?: HassEntity): TemplateResult {
     const labels = [ { value: '0', angle: -90 }, { value: '2500', angle: -45 }, { value: '5000', angle: 0 }, { value: '7500', angle: 45 }, { value: '10000', angle: 90 }, ];
     return html`
       <div class="gauge-wrapper">
         <div class="gauge-container">
           <div class="gauge-background"></div>
           <div class="gauge-ticks">
-            ${Array.from({ length: 41 }, (_, i) => {
-              const angle = -90 + i * 4.5;
-              const isMajorTick = i % 5 === 0;
-              return html`<div class="gauge-tick ${isMajorTick ? 'major' : ''}" style="transform: rotate(${angle}deg);"></div>`;
-            })}
+            ${Array.from({ length: 41 }, (_, i) => { const angle = -90 + i * 4.5; const isMajorTick = i % 5 === 0; return html`<div class="gauge-tick ${isMajorTick ? 'major' : ''}" style="transform: rotate(${angle}deg);"></div>`; })}
           </div>
           <div class="gauge-labels">
             ${labels.map(label => html` <div class="gauge-label-wrapper" style="transform: rotate(${label.angle}deg);"> <span class="gauge-label-text" style="transform: rotate(${-label.angle}deg);">${label.value}</span> </div> `)}
@@ -129,113 +119,50 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
         <div class="gauge-value-text">${powerValue.toFixed(1)}<span class="unit">W</span></div>
       </div>
       <div class="stats-grid">
-        <div class="stat"><ha-icon icon="mdi:solar-power"></ha-icon><div class="label">光伏输入电压</div><div class="value">${this._getState(pvVoltage)}<span class="unit">${this._getUnit(pvVoltage)}</span></div></div>
-        <div class="stat"><ha-icon icon="mdi:battery-charging"></ha-icon><div class="label">电池充电电压</div><div class="value">${this._getState(batteryVoltage)}<span class="unit">${this._getUnit(batteryVoltage)}</span></div></div>
-        <div class="stat"><ha-icon icon="mdi:current-dc"></ha-icon><div class="label">电池充电电流</div><div class="value">${this._getState(batteryCurrent)}<span class="unit">${this._getUnit(batteryCurrent)}</span></div></div>
+        <div class="stat"><ha-icon icon="mdi:solar-power"></ha-icon><div class="label">${localize(this.hass, 'gauge.pv_voltage')}</div><div class="value">${this._getState(pvVoltage)}<span class="unit">${this._getUnit(pvVoltage)}</span></div></div>
+        <div class="stat"><ha-icon icon="mdi:battery-charging"></ha-icon><div class="label">${localize(this.hass, 'gauge.battery_voltage')}</div><div class="value">${this._getState(batteryVoltage)}<span class="unit">${this._getUnit(batteryVoltage)}</span></div></div>
+        <div class="stat"><ha-icon icon="mdi:current-dc"></ha-icon><div class="label">${localize(this.hass, 'gauge.battery_current')}</div><div class="value">${this._getState(batteryCurrent)}<span class="unit">${this._getUnit(batteryCurrent)}</span></div></div>
       </div>
     `;
   }
-  private renderInfoBoxes(workStatus?: HassEntity, cumulativeGeneration?: HassEntity): TemplateResult { /* UNCHANGED */
+  private renderInfoBoxes(workStatus?: HassEntity, cumulativeGeneration?: HassEntity): TemplateResult {
+    const workStatusState = this._getState(workStatus, 'unknown');
+    const localizedWorkStatus = localize(this.hass, `states.work_status.${workStatusState}`);
     return html`
       <div class="info-grid">
-        <div class="info-box blue"><ha-icon icon="mdi:cog-transfer"></ha-icon><div class="label">充电模式</div><div class="value">${this._getState(workStatus)}</div></div>
-        <div class="info-box blue"><ha-icon icon="mdi:chart-line"></ha-icon><div class="label">累计发电量</div><div class="value">${this._getState(cumulativeGeneration)}<span class="unit">${this._getUnit(cumulativeGeneration)}</span></div></div>
+        <div class="info-box blue"><ha-icon icon="mdi:cog-transfer"></ha-icon><div class="label">${localize(this.hass, 'info.charge_mode')}</div><div class="value">${localizedWorkStatus}</div></div>
+        <div class="info-box blue"><ha-icon icon="mdi:chart-line"></ha-icon><div class="label">${localize(this.hass, 'info.cumulative_generation')}</div><div class="value">${this._getState(cumulativeGeneration)}<span class="unit">${this._getUnit(cumulativeGeneration)}</span></div></div>
       </div>
     `;
   }
-  private renderSwitchRow(powerSwitch: HassEntity): TemplateResult { /* UNCHANGED */
-    return html`<div class="row"><ha-icon icon="mdi:power-standby"></ha-icon><div class="label">电源开关</div><ha-switch .checked=${this._getState(powerSwitch) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: powerSwitch.entity_id })}></ha-switch></div>`;
-  }
-  private renderBatterySOCRow(batterySoc: HassEntity): TemplateResult { /* UNCHANGED */
-    return html`<div class="row"><ha-icon icon="mdi:battery"></ha-icon><div class="label">电池电量</div><div class="value">${this._getState(batterySoc)}<span class="unit">${this._getUnit(batterySoc)}</span></div></div>`;
-  }
-  private renderTempBar(temperature?: HassEntity): TemplateResult { /* UNCHANGED */
-    return html`<div class="temp-bar"><ha-icon icon="mdi:thermometer"></ha-icon><div class="label">当前温度</div><div class="value">${this._getState(temperature)}<span class="unit">${this._getUnit(temperature)}</span></div></div>`;
-  }
-  private renderSettingsPanel(): TemplateResult { /* UNCHANGED */
+  private renderSwitchRow(powerSwitch: HassEntity): TemplateResult { return html`<div class="row"><ha-icon icon="mdi:power-standby"></ha-icon><div class="label">${localize(this.hass, 'rows.power_switch')}</div><ha-switch .checked=${this._getState(powerSwitch) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: powerSwitch.entity_id })}></ha-switch></div>`; }
+  private renderBatterySOCRow(batterySoc: HassEntity): TemplateResult { return html`<div class="row"><ha-icon icon="mdi:battery"></ha-icon><div class="label">${localize(this.hass, 'rows.battery_soc')}</div><div class="value">${this._getState(batterySoc)}<span class="unit">${this._getUnit(batterySoc)}</span></div></div>`; }
+  private renderTempBar(temperature?: HassEntity): TemplateResult { return html`<div class="temp-bar"><ha-icon icon="mdi:thermometer"></ha-icon><div class="label">${localize(this.hass, 'rows.temperature')}</div><div class="value">${this._getState(temperature)}<span class="unit">${this._getUnit(temperature)}</span></div></div>`; }
+  private renderSettingsPanel(): TemplateResult {
     const settings: SettingConfig[] = [
-      { key: 'equalizationVoltage', domain: 'number', label: '均充电压' }, { key: 'floatVoltage', domain: 'number', label: '浮充电压' },
-      { key: 'chargeCurrent', domain: 'number', label: '最大充电电流' }, { key: 'batteryLowVoltage', domain: 'number', label: '电池低压' },
-      { key: 'batteryRecoverVoltage', domain: 'number', label: '电池恢复电压' }, { key: 'batteryType', domain: 'select', label: '电池类型' },
-      { key: 'batteryNumber', domain: 'number', label: '电池串数' },
+      { key: 'equalizationVoltage', domain: 'number', label: localize(this.hass, 'settings.equalization_voltage') }, { key: 'floatVoltage', domain: 'number', label: localize(this.hass, 'settings.float_voltage') },
+      { key: 'chargeCurrent', domain: 'number', label: localize(this.hass, 'settings.max_charge_current') }, { key: 'batteryLowVoltage', domain: 'number', label: localize(this.hass, 'settings.battery_low_voltage') },
+      { key: 'batteryRecoverVoltage', domain: 'number', label: localize(this.hass, 'settings.battery_recover_voltage') }, { key: 'batteryType', domain: 'select', label: localize(this.hass, 'settings.battery_type') },
+      { key: 'batteryNumber', domain: 'number', label: localize(this.hass, 'settings.battery_number') },
     ];
+    return html`<div class="settings-area">${settings.map(s => { const entity = this._getEntity(ENTITY_SUFFIX[s.key], s.domain); if (!entity) return ''; if (s.domain === 'number') { if (s.key === 'batteryNumber') { return this.renderSliderSetting(entity, s.label); } return this.renderNumberSetting(entity, s.label); } if (s.domain === 'select') { return this.renderSelectSetting(entity, s.label); } return ''; })}</div>`;
+  }
+  private renderNumberSetting(entity: HassEntity, label: string): TemplateResult { return html` <div class="setting-row"> <label>${label}</label> <ha-textfield type="number" .value=${entity.state} .min=${entity.attributes.min} .max=${entity.attributes.max} .step=${entity.attributes.step} suffix=${this._getUnit(entity)} @change=${(e: Event) => this._callService('number', 'set_value', { entity_id: entity.entity_id, value: (e.target as HTMLInputElement).value })}></ha-textfield> </div> `; }
+  private renderSliderSetting(entity: HassEntity, label: string): TemplateResult { return html` <div class="setting-row slider"> <label>${label}</label> <div class="slider-container"> <ha-slider min=${entity.attributes.min} max=${entity.attributes.max} step=${entity.attributes.step} .value=${entity.state} pin @change=${(e: Event) => this._callService('number', 'set_value', { entity_id: entity.entity_id, value: (e.target as HTMLInputElement).value })}></ha-slider> <span>${entity.state}</span> </div> </div> `; }
+  private renderSelectSetting(entity: HassEntity, label: string): TemplateResult {
     return html`
-      <div class="settings-area">
-        ${settings.map(s => {
-          const entity = this._getEntity(ENTITY_SUFFIX[s.key], s.domain);
-          if (!entity) return '';
-          if (s.domain === 'number') {
-            if (s.key === 'batteryNumber') { return this.renderSliderSetting(entity, s.label); }
-            return this.renderNumberSetting(entity, s.label);
-          }
-          if (s.domain === 'select') { return this.renderSelectSetting(entity, s.label); }
-          return '';
-        })}
+      <div class="setting-row">
+        <label>${label}</label>
+        <ha-select .value=${entity.state} @selected=${(e: Event) => { const selectedValue = (e.target as HTMLSelectElement).value; this._callService('select', 'select_option', { entity_id: entity.entity_id, option: selectedValue }); }}>
+          ${entity.attributes.options.map((opt: string) => html`<mwc-list-item .value=${opt}>${localize(this.hass, `states.battery_type.${opt}`)}</mwc-list-item>`)}
+        </ha-select>
       </div>
     `;
   }
-  private renderNumberSetting(entity: HassEntity, label: string): TemplateResult { /* UNCHANGED */
-    return html` <div class="setting-row"> <label>${label}</label> <ha-textfield type="number" .value=${entity.state} .min=${entity.attributes.min} .max=${entity.attributes.max} .step=${entity.attributes.step} suffix=${this._getUnit(entity)} @change=${(e: Event) => this._callService('number', 'set_value', { entity_id: entity.entity_id, value: (e.target as HTMLInputElement).value })}></ha-textfield> </div> `;
-  }
-  private renderSliderSetting(entity: HassEntity, label: string): TemplateResult { /* UNCHANGED */
-    return html` <div class="setting-row slider"> <label>${label}</label> <div class="slider-container"> <ha-slider min=${entity.attributes.min} max=${entity.attributes.max} step=${entity.attributes.step} .value=${entity.state} pin @change=${(e: Event) => this._callService('number', 'set_value', { entity_id: entity.entity_id, value: (e.target as HTMLInputElement).value })}></ha-slider> <span>${entity.state}</span> </div> </div> `;
-  }
-  private renderSelectSetting(entity: HassEntity, label: string): TemplateResult { /* UNCHANGED */
-    return html` <div class="setting-row"> <label>${label}</label> <ha-select .value=${entity.state} @selected=${(e: Event) => { const selectedValue = (e.target as HTMLSelectElement).value; this._callService('select', 'select_option', { entity_id: entity.entity_id, option: selectedValue }); }}> ${entity.attributes.options.map((opt: string) => html`<mwc-list-item .value=${opt}>${opt}</mwc-list-item>`)} </ha-select> </div> `;
-  }
-
-  // ADDED: A new render function for the diagnostics panel
-  private renderDiagnosticsPanel(): TemplateResult {
-    const wifiSignal = this._getEntity(ENTITY_SUFFIX.wifiSignal);
-    const wifiSsid = this._getEntity(ENTITY_SUFFIX.wifiSsid);
-    const ledIndicator = this._getEntity(ENTITY_SUFFIX.ledIndicator, 'switch');
-    const restartDevice = this._getEntity(ENTITY_SUFFIX.restartDevice, 'button');
-    const resetDevice = this._getEntity(ENTITY_SUFFIX.resetDevice, 'button');
-
-    return html`
-      <div class="diagnostics-area">
-        <!-- WiFi Signal Strength -->
-        ${wifiSignal ? html`
-          <div class="setting-row">
-            <label>信号强度</label>
-            <span>${this._getState(wifiSignal)}${this._getUnit(wifiSignal)}</span>
-          </div>
-        ` : ''}
-        <!-- WiFi Name (SSID) -->
-        ${wifiSsid ? html`
-          <div class="setting-row">
-            <label>WiFi 名称</label>
-            <span>${this._getState(wifiSsid)}</span>
-          </div>
-        ` : ''}
-        <!-- LED Indicator Switch -->
-        ${ledIndicator ? html`
-          <div class="setting-row">
-            <label>LED 指示灯</label>
-            <ha-switch .checked=${this._getState(ledIndicator) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: ledIndicator.entity_id })}></ha-switch>
-          </div>
-        ` : ''}
-        <!-- Restart Device Button -->
-        ${restartDevice ? html`
-          <div class="setting-row">
-            <label>重启设备</label>
-            <mwc-button @click=${() => this._callService('button', 'press', { entity_id: restartDevice.entity_id })}>重启</mwc-button>
-          </div>
-        ` : ''}
-        <!-- Reset Device Button -->
-        ${resetDevice ? html`
-          <div class="setting-row">
-            <label>重置设备</label>
-            <mwc-button class="destructive" @click=${() => this._callService('button', 'press', { entity_id: resetDevice.entity_id })}>重置</mwc-button>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-
+  private renderDiagnosticsPanel(): TemplateResult { const wifiSignal = this._getEntity(ENTITY_SUFFIX.wifiSignal); const wifiSsid = this._getEntity(ENTITY_SUFFIX.wifiSsid); const ledIndicator = this._getEntity(ENTITY_SUFFIX.ledIndicator, 'switch'); const restartDevice = this._getEntity(ENTITY_SUFFIX.restartDevice, 'button'); const resetDevice = this._getEntity(ENTITY_SUFFIX.resetDevice, 'button'); return html`<div class="diagnostics-area">${wifiSignal ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.signal_strength')}</label><span>${this._getState(wifiSignal)}${this._getUnit(wifiSignal)}</span></div>` : ''}${wifiSsid ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.wifi_name')}</label><span>${this._getState(wifiSsid)}</span></div>` : ''}${ledIndicator ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.led_indicator')}</label><ha-switch .checked=${this._getState(ledIndicator) === 'on'} @click=${() => this._callService('switch', 'toggle', { entity_id: ledIndicator.entity_id })}></ha-switch></div>` : ''}${restartDevice ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.restart_device')}</label><mwc-button @click=${() => this._callService('button', 'press', { entity_id: restartDevice.entity_id })}>${localize(this.hass, 'diagnostics.restart')}</mwc-button></div>` : ''}${resetDevice ? html`<div class="setting-row"><label>${localize(this.hass, 'diagnostics.reset_device')}</label><mwc-button class="destructive" @click=${() => this._callService('button', 'press', { entity_id: resetDevice.entity_id })}>${localize(this.hass, 'diagnostics.reset')}</mwc-button></div>` : ''}</div>`; }
+  
   static get styles(): CSSResultGroup {
     return css`
-      /* UNCHANGED STYLES */
       ha-card { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
       .card-content { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
       .warning { padding: 16px; color: var(--error-color); }
@@ -251,7 +178,7 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .gauge-label-wrapper { position: absolute; width: 1px; height: 145px; bottom: 0; left: 50%; transform-origin: bottom center; }
       .gauge-label-text { position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em; color: var(--secondary-text-color); }
       .gauge-power-bar { position: absolute; bottom: 12.5px; left: 50%; width: 6px; height: 75px; margin-left: -3px; background-color: #f44336; border-radius: 3px; transform-origin: bottom center; transition: transform 0.5s ease-in-out; }
-      .gauge-value-text { margin-top: 20px; font-size: 2.2em; font-weight: bold; color: #4CAF50; text-align: center; }
+      .gauge-value-text { margin-top: 10px; font-size: 2.2em; font-weight: bold; color: #4CAF50; text-align: center; }
       .gauge-value-text .unit { font-size: 0.5em; font-weight: normal; color: var(--secondary-text-color); margin-left: 4px; }
       .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; text-align: center; }
       .stat ha-icon { color: var(--state-icon-color); margin-bottom: 4px; }
@@ -269,29 +196,15 @@ export class HaMakeskyblueMpptCard extends LitElement implements LovelaceCard {
       .row .label, .temp-bar .label { flex-grow: 1; margin-left: 12px; font-weight: 500; }
       .row .value, .temp-bar .value { font-size: 1.1em; font-weight: bold; }
       .row .value .unit { font-size: 0.8em; color: var(--secondary-text-color); }
-      .settings-area { padding: 0 16px 16px; border-top: 1px solid var(--divider-color); margin-top: 8px; }
+      .settings-area, .diagnostics-area { padding: 0 16px 16px; border-top: 1px solid var(--divider-color); margin-top: 8px; }
       .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
       .setting-row label { flex: 1; }
       .setting-row ha-textfield, .setting-row ha-select { flex: 1; max-width: 150px; }
       .setting-row.slider { flex-direction: column; align-items: stretch; }
       .slider-container { display: flex; align-items: center; gap: 16px; }
       .slider-container ha-slider { flex-grow: 1; }
-      
-      /* ADDED: Styles for the new diagnostics panel */
-      .card-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        padding-right: 8px;
-      }
-      .diagnostics-area {
-        padding: 0 16px 16px;
-        border-top: 1px solid var(--divider-color);
-        margin-top: 8px;
-      }
-      .destructive {
-        --mdc-theme-primary: var(--error-color);
-      }
+      .card-actions { display: flex; justify-content: flex-end; gap: 8px; padding-right: 8px; }
+      .destructive { --mdc-theme-primary: var(--error-color); }
     `;
   }
 }
